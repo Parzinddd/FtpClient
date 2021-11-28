@@ -1,16 +1,17 @@
 package com.example.ftpclient;
 
-import org.apache.log4j.Logger;
+import org.greenrobot.eventbus.EventBus;
+
+import lombok.Getter;
+
 
 import java.io.*;
-import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Locale;
 
+@Getter
 public class FtpPassive {
-//    Logger logger = Logger.getLogger(FtpPassive.class);
 
     private BufferedReader controlReader;
     private PrintWriter controlOut;
@@ -51,7 +52,7 @@ public class FtpPassive {
         String msg = "";
         do {
             msg = controlReader.readLine();
-//            logger.debug(msg);
+            EventBus.getDefault().post(msg);
         }while (!msg.startsWith("220 "));
     }
 
@@ -61,20 +62,20 @@ public class FtpPassive {
 
         this.response = this.controlReader.readLine();
 //        System.out.println(response);
-//        logger.debug(response);
+        EventBus.getDefault().post(response);
         if (!this.response.startsWith("331 ")){//验证成功
 //             throw new IOException(""+response);
-//            logger.error(response);
+            EventBus.getDefault().post(response);
             return -1;
         }
 
         controlOut.println("PASS "+ password);
 
         response = controlReader.readLine();
-//        logger.debug(response);
+        EventBus.getDefault().post(response);
         if (!response.startsWith("230 ")){
 //            throw new IOException(""+response);
-//            logger.error(response);
+            EventBus.getDefault().post(response);
             return -1;
         }
         isLogin = true;
@@ -87,20 +88,20 @@ public class FtpPassive {
 
         this.response = this.controlReader.readLine();
 //        System.out.println(response);
-//        logger.debug(response);
+        EventBus.getDefault().post(response);
         if (!this.response.startsWith("331 ")){//验证成功
 //             throw new IOException(""+response);
-//            logger.error(response);
+            EventBus.getDefault().post(response);
             return -1;
         }
 
         controlOut.println("PASS "+ password);
 
         response = controlReader.readLine();
-//        logger.debug(response);
+        EventBus.getDefault().post(response);
         if (!response.startsWith("230 ")){
 //            throw new IOException(""+response);
-//            logger.error(response);
+            EventBus.getDefault().post(response);
             return -1;
         }
         isLogin = true;
@@ -113,12 +114,12 @@ public class FtpPassive {
         if (!response.startsWith("221")){
             throw new IOException("Close connection failed!");
         }
-//        logger.debug(response);
+        EventBus.getDefault().post(response);
         this.isLogin = false;
         socket.close();
         if (socket.isClosed()){
 //            System.out.println("关闭连接");
-//            logger.debug("关闭连接");
+            EventBus.getDefault().post("关闭连接");
             return 1;
         }
         return -1;
@@ -129,12 +130,12 @@ public class FtpPassive {
         if (!this.isPassMode){
             this.controlOut.println("PASV mode");
             response = this.controlReader.readLine();
-//            logger.debug(response);
+            EventBus.getDefault().post(response);
             if (!response.startsWith("271")){
                 throw new IOException("FTPClient could not request passive mode: " + response);
             }
             int tempPort = Integer.parseInt(response.split(" ")[4]);
-//            logger.debug("端口号："+tempPort);
+            EventBus.getDefault().post("端口号："+tempPort);
             this.passHost = "127.0.0.1";
             this.passPort = tempPort;
             isPassMode = true;
@@ -142,10 +143,10 @@ public class FtpPassive {
     }
 
     public int upload(String path) throws IOException {
-//        logger.debug("File path: "+path);
+        EventBus.getDefault().post("File path: "+path);
         File file = new File(path);
         if (!file.exists()) {
-//            logger.debug("File not exists...");
+            EventBus.getDefault().post("File not exists...");
             return -1;
         }else {
             checkPassiveConnect();
@@ -153,7 +154,7 @@ public class FtpPassive {
             this.controlOut.println("STOR "+file.getName());
             Socket dataSocket = new Socket(this.passHost,this.passPort);
             response = this.controlReader.readLine();
-//            logger.debug(response);
+            EventBus.getDefault().post(response);
             FileInputStream inputStream = new FileInputStream(file);
             int bytesRead;
             if (this.type == TransferType.BINARY) {
@@ -180,7 +181,7 @@ public class FtpPassive {
             inputStream.close();
             dataSocket.close();
             response = this.controlReader.readLine();
-//            logger.debug(response);
+            EventBus.getDefault().post(response);
             return 1;
         }
     }
@@ -202,12 +203,16 @@ public class FtpPassive {
     }
 
     public int download(String filename, String path) throws IOException {
-//         logger.debug(filename);
+         EventBus.getDefault().post(filename);
          checkPassiveConnect();
          //send RETR command
          this.controlOut.println("RETR "+filename);
          response = controlReader.readLine();
-//         logger.debug(response);
+         EventBus.getDefault().post(response);
+         if (!response.startsWith("150")){
+            EventBus.getDefault().post("File not exits!");
+            return -1;
+         }
          //send data connection
          Socket dataSocket = new Socket(this.passHost,this.passPort);
          //Read data from server
@@ -235,7 +240,7 @@ public class FtpPassive {
         }
         dataSocket.close();
         response = controlReader.readLine();
-//        logger.debug(response);
+        EventBus.getDefault().post(response);
         return 1;
     }
 
@@ -244,11 +249,16 @@ public class FtpPassive {
         file.mkdir();
         //send RETR command
         controlOut.println("RETR " + filename);
+        response = controlReader.readLine();
+        if (!response.startsWith("150")){
+            EventBus.getDefault().post("File not exits!");
+            return;
+        }
         ArrayList<String> files = new ArrayList<>();
         ArrayList<String> folds = new ArrayList<>();
         String[] res;
         while ((response=controlReader.readLine()).startsWith("160")){
-//            logger.debug(response);
+            EventBus.getDefault().post(response);
             res = response.split(" ");
             if (res[2].equals("file")){
                 files.add(res[1]);
@@ -282,23 +292,37 @@ public class FtpPassive {
         if (!response.startsWith("280")){
             throw new IOException("Failed to set type "+response);
         }
-//        logger.debug(response);
+        EventBus.getDefault().post(response);
     }
 
     public void selectMode(String mode) throws IOException {
         mode = mode.toUpperCase(Locale.ROOT);
-        if (mode.equals("BLOCK")){
-            this.mode = TransferMode.BLOCK;
-        }else if (mode.equals("STREAM")){
-            this.mode = TransferMode.STREAM;
-        }else if (mode.equals("ZIP")){
-            this.mode = TransferMode.ZIP;
+        switch (mode) {
+            case "BLOCK" : this.mode = TransferMode.BLOCK;break;
+            case "STREAM" : this.mode = TransferMode.STREAM;break;
+            case "ZIP" : this.mode = TransferMode.ZIP;break;
         }
         controlOut.println("MODE "+mode);
         response = controlReader.readLine();
         if (!response.startsWith("290")){
             throw new IOException("Failed to set mode "+response);
         }
-//        logger.debug(response);
+        EventBus.getDefault().post(response);
+    }
+
+    public void selectStructure(String stru) throws IOException {
+        stru = stru.toUpperCase(Locale.ROOT);
+        String order="";
+        switch (stru) {
+            case "R" : order = "RECORD";break;
+            case "P" : order = "PAGE";break;
+            default : order = "FILE";
+        }
+        controlOut.println("STRU "+order);
+        response = controlReader.readLine();
+        if (!response.startsWith("295")){
+            throw new IOException("Failed to set structure "+response);
+        }
+        EventBus.getDefault().post(response);
     }
 }
